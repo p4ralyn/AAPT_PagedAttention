@@ -20,3 +20,5 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+#define SYS_aapt_cow_fork 22  // sys_aapt_cow_fork added
+#define SYS_count_free_pages 23 //sys_count_free_pages added

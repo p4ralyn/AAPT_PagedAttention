@@ -358,9 +358,22 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     }
 
     pte = walk(pagetable, va0, 0);
-    // forbid copyout over read-only user text pages.
-    if((*pte & PTE_W) == 0)
-      return -1;
+    
+    // --- AAPT MODIFICATION: Intercept CoW pages before failing ---
+    if((*pte & PTE_W) == 0) {
+      // It's read-only. Let's ask our handler to duplicate it.
+      // NOTE: Ensure your cow_handler returns 0 on success, and -1 if it 
+      // fails (out of memory) or if the page wasn't actually a CoW page.
+      if(cow_handler(pagetable, va0) != 0) {
+        return -1; // Standard permission error or OOM, let it fail
+      }
+      
+      // If we survived, the page was duplicated! 
+      // We MUST re-walk to get the new PTE and update pa0.
+      pte = walk(pagetable, va0, 0);
+      pa0 = PTE2PA(*pte); // Update pa0 to the new physical frame!
+    }
+    // --- END AAPT MODIFICATION ---
       
     n = PGSIZE - (dstva - va0);
     if(n > len)
@@ -482,5 +495,83 @@ ismapped(pagetable_t pagetable, uint64 va)
   if (*pte & PTE_V){
     return 1;
   }
+  return 0;
+}
+
+// AAPT CoW: Copy-on-Write version of uvmcopy
+// Instead of copying pages, it maps them to the same physical address
+// and clears the PTE_W (Write) flag.
+int
+uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walk(old, i, 0)) == 0)
+      panic("uvmcopy_cow: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("uvmcopy_cow: page not present");
+    
+    pa = PTE2PA(*pte);
+    
+    // Clear Write flag, set Copy-on-Write flag (using a reserved bit)
+    // We use PTE_W (write) off to trigger a page fault later.
+    *pte &= ~PTE_W;
+    flags = PTE_FLAGS(*pte);
+
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
+      goto err;
+    }
+    
+    // Increment the reference count of the physical page
+    incref(pa);
+  }
+  return 0;
+
+ err:
+  uvmdealloc(new, i, 0);
+  return -1;
+}
+
+// AAPT CoW: The actual handler for a Page Fault
+// It allocates a new physical page and copies the content
+int
+cow_handler(pagetable_t pagetable, uint64 va)
+{
+  if(va >= MAXVA) return -1;
+  
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0)
+    return -1;
+
+  uint64 pa = PTE2PA(*pte);
+  
+  // If ref_count is 1, we can just give the process write access 
+  // instead of allocating a new page! (This is an optimization)
+  if(krefcount(pa) == 1) {
+    *pte |= PTE_W;
+    return 0;
+  }
+
+  // Otherwise, allocate a new page
+  char *mem = kalloc();
+  if(mem == 0) return -1;
+
+  memmove(mem, (char*)pa, PGSIZE);
+  
+  // Map the new page with Write permissions
+  uint flags = PTE_FLAGS(*pte) | PTE_W;
+  *pte &= ~PTE_V; // Temporarily invalidate to avoid race
+  
+  if(mappages(pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, flags) != 0){
+    kfree(mem);
+    *pte |= PTE_V;
+    return -1;
+  }
+
+  // Free the old physical reference (this will decref)
+  kfree((void*)pa);
   return 0;
 }

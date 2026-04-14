@@ -23,6 +23,18 @@ struct {
   struct run *freelist;
 } kmem;
 
+// --- AAPT CoW: Reference Counter Array ---
+int ref_count[PHYSTOP / PGSIZE];
+
+// Helper to increment the reference count safely
+void incref(uint64 pa) {
+  int pn = pa / PGSIZE;
+  acquire(&kmem.lock);
+  ref_count[pn]++;
+  release(&kmem.lock);
+}
+// -----------------------------------------
+
 void
 kinit()
 {
@@ -51,6 +63,18 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  // --- AAPT CoW: Check Reference Count ---
+  int pn = (uint64)pa / PGSIZE;
+  acquire(&kmem.lock);
+  if(ref_count[pn] > 1) {
+    ref_count[pn]--;       // Just drop the count, someone else is using it!
+    release(&kmem.lock);
+    return;
+  }
+  ref_count[pn] = 0;       // Count is 0, actually free the memory
+  release(&kmem.lock);
+  // ---------------------------------------
+
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -72,11 +96,34 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
+    // --- AAPT CoW: Initialize Ref Count ---
+    int pn = (uint64)r / PGSIZE;
+    ref_count[pn] = 1;
+    // --------------------------------------
+  }
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+int krefcount(uint64 pa) { //helper for cow_handler
+  return ref_count[pa / PGSIZE];
+}
+
+int 
+count_free_pages(void) {
+  struct run *r;
+  int count = 0;
+  acquire(&kmem.lock);
+  r = kmem.freelist;
+  while(r){
+    count++;
+    r = r->next;
+  }
+  release(&kmem.lock);
+  return count;
 }

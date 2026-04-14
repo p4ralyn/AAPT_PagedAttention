@@ -59,6 +59,9 @@ void            ireclaim(int);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void            incref(uint64); //added new
+int krefcount(uint64); //added new
+int count_free_pages(void); //added new
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -101,6 +104,11 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+extern struct spinlock wait_lock; 
+// explicit declaration of allocproc and freeproc
+struct proc* allocproc(void);
+void            freeproc(struct proc*);
+extern struct spinlock wait_lock; // visibility issue fix
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -169,6 +177,8 @@ int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             ismapped(pagetable_t, uint64);
 uint64          vmfault(pagetable_t, uint64, int);
+int             uvmcopy_cow(pagetable_t, pagetable_t, uint64); // uvmcopy_cow visibility deifnition
+int cow_handler(pagetable_t, uint64); //also added new
 
 // plic.c
 void            plicinit(void);

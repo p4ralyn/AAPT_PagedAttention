@@ -66,6 +66,13 @@ usertrap(void)
     intr_on();
 
     syscall();
+  }
+  else if(r_scause() == 15){ //added for cow handling
+    // AAPT: Store Page Fault (Attempting to write to a Read-Only CoW page)
+    uint64 fault_va = r_stval();
+    if(cow_handler(p->pagetable, fault_va) < 0) {
+      p->killed = 1;
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if((r_scause() == 15 || r_scause() == 13) &&

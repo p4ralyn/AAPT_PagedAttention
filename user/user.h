@@ -24,6 +24,8 @@ int getpid(void);
 char* sys_sbrk(int,int);
 int pause(int);
 int uptime(void);
+int aapt_cow_fork(void); // aapt_cow_fork user header
+int count_free_pages(void); //count_free_pages user header
 
 // ulib.c
 int stat(const char*, struct stat*);

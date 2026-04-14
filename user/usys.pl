@@ -42,3 +42,5 @@ entry("getpid");
 entry("sbrk");
 entry("pause");
 entry("uptime");
+entry("aapt_cow_fork"); # aapt_cow_fork entry for perl assembly generator 
+entry("count_free_pages"); # count_free_pages entry for perl assembly generator

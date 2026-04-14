@@ -101,6 +101,8 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+extern uint64 sys_aapt_cow_fork(void); // extern list sys_aapt_cow_fork added
+extern uint64 sys_count_free_pages(void); //extern list sys_count_free_pages added
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -126,6 +128,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_aapt_cow_fork] sys_aapt_cow_fork, // syscalls array sys_aapt_cow_fork added
+[SYS_count_free_pages] sys_count_free_pages, //
 };
 
 void
