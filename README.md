@@ -57,4 +57,3 @@ $ aapt_benchmark
 
 ---
 *Developed at Shiv Nadar Institution of Eminence (SNIoE).*
-```
