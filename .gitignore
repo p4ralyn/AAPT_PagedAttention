@@ -16,3 +16,10 @@ kernel/kernel
 user/usys.S
 .gdbinit
 TAGS
+
+# macOS
+.DS_Store
+
+# ChampSim is a separate upstream checkout (its own git repo, ~734M) kept
+# alongside the kernel for trace-driven simulation. It is not part of xv6.
+ChampSim/
